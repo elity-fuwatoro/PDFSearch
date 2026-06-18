@@ -6,14 +6,514 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>スマートPDF検索</title>
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- PDF.js -->
+  <!-- PDF.js のみ外部から読み込み -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
-    /* 実際のPDFページにハイライトを重ねるためのスタイル定義 */
+    /* ==========================================
+       CSS Variables & Reset
+       ========================================== */
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-active: #3730a3;
+      --primary-light: #e0e7ff;
+      --bg-color: #f9fafb;
+      --surface: #ffffff;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --highlight: rgba(253, 224, 71, 0.45);
+      --highlight-solid: #fde047;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-xl: 0.75rem;
+      --radius-2xl: 1rem;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding-bottom: 5rem;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+      color: inherit;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* ==========================================
+       Layout & Components
+       ========================================== */
+    .header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      box-shadow: var(--shadow-md);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.125rem;
+      font-weight: bold;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 28rem;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    /* Cards */
+    .card {
+      background-color: var(--surface);
+      padding: 1.5rem;
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+
+    .card-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-xl);
+      font-weight: 600;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      background-color: var(--primary-active);
+    }
+
+    .btn-disabled {
+      background-color: #9ca3af;
+      color: white;
+      cursor: not-allowed;
+    }
+
+    .btn-text {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      padding: 0.5rem;
+    }
+
+    .btn-text:hover {
+      color: #ef4444;
+    }
+
+    /* Icons */
+    .icon-circle {
+      width: 4rem;
+      height: 4rem;
+      background-color: var(--primary-light);
+      color: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      width: 100%;
+      max-width: 20rem;
+      background-color: #e5e7eb;
+      border-radius: 9999px;
+      height: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .progress-bar {
+      background-color: var(--primary);
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.3s ease-out;
+    }
+
+    /* Search Input */
+    .search-wrapper {
+      position: sticky;
+      top: 60px;
+      /* Header height offset */
+      z-index: 10;
+      background: rgba(249, 250, 251, 0.95);
+      backdrop-filter: blur(4px);
+      padding: 0.5rem 0 1rem;
+    }
+
+    .search-input-box {
+      position: relative;
+    }
+
+    .search-icon-left {
+      position: absolute;
+      top: 50%;
+      left: 0.75rem;
+      transform: translateY(-50%);
+      color: #9ca3af;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 0.875rem 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      font-size: 1rem;
+      outline: none;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      top: 50%;
+      right: 0.75rem;
+      transform: translateY(-50%);
+      color: #9ca3af;
+    }
+
+    .search-clear-btn:hover {
+      color: var(--text-muted);
+    }
+
+    .search-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      padding: 0 0.25rem;
+    }
+
+    .badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-primary {
+      background-color: var(--primary-light);
+      color: var(--primary-active);
+    }
+
+    .badge-success {
+      background-color: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.65rem;
+    }
+
+    .badge-gray {
+      background-color: #f3f4f6;
+      color: #4b5563;
+      border: 1px solid var(--border);
+    }
+
+    /* Result Card */
+    .result-card {
+      background-color: var(--surface);
+      padding: 1rem;
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-card:hover {
+      border-color: #a5b4fc;
+      box-shadow: var(--shadow-md);
+    }
+
+    .result-card:active {
+      background-color: #f9fafb;
+    }
+
+    .result-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-card-tags {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .result-card-link {
+      font-size: 0.75rem;
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .result-card-snippet {
+      font-size: 0.875rem;
+      color: #374151;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Highlight */
+    mark {
+      background-color: var(--highlight-solid);
+      color: #111827;
+      padding: 0 2px;
+      border-radius: 2px;
+      font-weight: 500;
+    }
+
+    /* Floating Action Button */
+    .fab {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background-color: #1f2937;
+      color: white;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-lg);
+      z-index: 20;
+      transition: transform 0.1s;
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+    }
+
+    /* ==========================================
+       Modal
+       ========================================== */
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-container {
+      background-color: var(--surface);
+      width: 100%;
+      max-width: 72rem;
+      height: 96vh;
+      border-radius: var(--radius-2xl);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background-color: var(--primary-light);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-nav-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-btn {
+      background-color: white;
+      color: var(--primary);
+      border: 1px solid #e0e7ff;
+      border-radius: 50%;
+      width: 2.25rem;
+      height: 2.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background-color: #eef2ff;
+    }
+
+    .nav-btn:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .modal-title {
+      font-weight: bold;
+      color: var(--primary-active);
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0 0.5rem;
+    }
+
+    .modal-close {
+      color: var(--text-muted);
+      padding: 0.375rem;
+      border-radius: 50%;
+    }
+
+    .modal-close:hover {
+      background-color: #e5e7eb;
+      color: #374151;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.75rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      background-color: white;
+    }
+
+    .tab:hover:not(.active) {
+      background-color: #f9fafb;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+      background-color: rgba(238, 242, 255, 0.5);
+    }
+
+    /* Modal Content */
+    .modal-body {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background-color: #f3f4f6;
+    }
+
+    .modal-text-view {
+      padding: 1.5rem;
+      overflow-y: auto;
+      font-size: 1rem;
+      line-height: 2;
+      color: #1f2937;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background-color: white;
+      height: 100%;
+    }
+
+    /* PDF Viewer Elements */
+    .pdf-viewer {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      display: flex;
+      padding: 1rem;
+      position: relative;
+    }
+
+    .pdf-wrapper {
+      margin: auto;
+      position: relative;
+      background-color: white;
+      box-shadow: var(--shadow-lg);
+    }
+
+    canvas {
+      display: block;
+    }
+
     .pdf-text-layer {
       position: absolute;
       left: 0;
@@ -36,26 +536,242 @@
     }
 
     .pdf-text-layer mark {
-      background-color: rgba(253, 224, 71, 0.45);
-      /* 半透明の黄色 */
-      border-radius: 2px;
+      background-color: var(--highlight);
       color: transparent;
+      border-radius: 2px;
       box-shadow: 0 0 2px rgba(253, 224, 71, 0.5);
     }
 
-    /* モーダルのスクロール制御用 */
-    body.modal-open {
+    .zoom-controls {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      background-color: rgba(31, 41, 55, 0.9);
+      backdrop-filter: blur(4px);
+      color: white;
+      padding: 0.375rem;
+      border-radius: 9999px;
+      box-shadow: var(--shadow-lg);
+      z-index: 20;
+    }
+
+    .zoom-btn {
+      padding: 0.5rem;
+      border-radius: 50%;
+    }
+
+    .zoom-btn:hover:not(:disabled) {
+      background-color: #4b5563;
+    }
+
+    .zoom-btn:disabled {
+      opacity: 0.3;
+    }
+
+    .zoom-text {
+      font-size: 0.875rem;
+      font-weight: 500;
+      width: 3rem;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(229, 231, 235, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+      padding: 1rem;
+      background-color: white;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .result-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .result-nav-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .result-nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.5rem 1rem;
+      background-color: #fef08a;
+      /* yellow-200 */
+      color: #854d0e;
+      /* yellow-800 */
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-radius: var(--radius-xl);
+      border: 1px solid #fde047;
+      transition: all 0.2s;
+    }
+
+    .result-nav-btn:hover:not(:disabled) {
+      background-color: #fde047;
+    }
+
+    .result-nav-btn:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    .result-nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .result-index {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4b5563;
+      padding: 0 0.25rem;
+    }
+
+    /* Dialog */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .dialog-box {
+      background-color: white;
+      border-radius: var(--radius-2xl);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      width: 100%;
+      max-width: 24rem;
+      padding: 1.5rem;
+    }
+
+    .dialog-msg {
+      color: #1f2937;
+      white-space: pre-wrap;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    .btn-dialog-cancel {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      background-color: #f3f4f6;
+      border-radius: var(--radius-xl);
+    }
+
+    .btn-dialog-cancel:hover {
+      background-color: #e5e7eb;
+    }
+
+    .btn-dialog-ok {
+      padding: 0.5rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: white;
+      background-color: var(--primary);
+      border-radius: var(--radius-xl);
+    }
+
+    .btn-dialog-ok:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-dialog-danger {
+      background-color: #ef4444;
+    }
+
+    .btn-dialog-danger:hover {
+      background-color: #dc2626;
+    }
+
+    /* Utility animations */
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #9ca3af;
+    }
+
+    .empty-state svg {
+      margin: 0 auto 1rem;
+      opacity: 0.5;
+    }
+
+    .truncate {
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+      display: inline-block;
+      vertical-align: bottom;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 640px) {
+
+      .result-nav-label,
+      .result-nav-btn span {
+        display: none;
+      }
+
+      .result-nav-btn {
+        padding: 0.5rem;
+      }
     }
   </style>
 </head>
 
-<body class="bg-gray-50 font-sans text-gray-800 pb-20">
+<body>
 
   <!-- ヘッダー -->
-  <header class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-20 flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <!-- FileText Icon -->
+  <header class="header">
+    <div class="header-title">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
@@ -64,10 +780,9 @@
         <line x1="16" x2="8" y1="17" y2="17" />
         <line x1="10" x2="8" y1="9" y2="9" />
       </svg>
-      <h1 class="text-lg font-bold leading-tight">スマートPDF検索</h1>
+      <h1>スマートPDF検索</h1>
     </div>
-    <button id="btn-reset" class="text-white/80 hover:text-white p-1 hidden" aria-label="ファイルを閉じる">
-      <!-- XCircle Icon -->
+    <button id="btn-reset" class="modal-close hidden" style="color:white" aria-label="ファイルを閉じる">
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -77,13 +792,11 @@
     </button>
   </header>
 
-  <main class="w-full max-w-md mx-auto p-4">
+  <main class="container">
 
     <!-- 1. アップロード画面 -->
-    <div id="view-upload"
-      class="mt-10 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center space-y-4">
-      <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-2">
-        <!-- FileUp Icon -->
+    <div id="view-upload" class="card card-center" style="margin-top: 2.5rem;">
+      <div class="icon-circle">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
@@ -92,20 +805,18 @@
           <path d="m15 15-3-3-3 3" />
         </svg>
       </div>
-      <h2 class="text-xl font-bold">PDFを選択してください</h2>
-      <p class="text-sm text-gray-500 mb-4">
+      <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 0.5rem;">PDFを選択してください</h2>
+      <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem;">
         対象のPDFファイルを選択すると、お使いの端末内で解析・検索が可能になります。通信は発生しません。
       </p>
 
       <input type="file" accept=".pdf" id="pdf-upload" class="hidden" />
-      <label id="lbl-upload" for="pdf-upload"
-        class="w-full py-3 px-4 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer bg-gray-400 cursor-not-allowed">
+      <label id="lbl-upload" for="pdf-upload" class="btn btn-disabled">
         準備中...
       </label>
 
-      <button id="btn-clear-cache"
-        class="mt-4 pt-4 text-sm text-gray-400 hover:text-red-500 flex items-center justify-center gap-1 transition-colors w-full border-t border-gray-100">
-        <!-- Trash2 Icon -->
+      <button id="btn-clear-cache" class="btn-text"
+        style="margin-top: 1.5rem; border-top: 1px solid var(--border); width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 6h18" />
@@ -119,42 +830,33 @@
     </div>
 
     <!-- 2. ローディング画面 -->
-    <div id="view-loading" class="mt-20 flex-col items-center justify-center space-y-6 hidden">
-      <!-- Loader2 Icon -->
-      <svg class="animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="48" height="48"
-        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round">
+    <div id="view-loading" class="card-center hidden" style="margin-top: 5rem;">
+      <svg class="animate-spin" style="color: var(--primary); margin-bottom: 1.5rem;" xmlns="http://www.w3.org/2000/svg"
+        width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
       </svg>
-      <div class="text-center">
-        <p class="font-bold text-lg">PDFを解析中...</p>
-        <p class="text-sm text-gray-500 mt-1">端末の性能により数秒〜数十秒かかります</p>
+      <div>
+        <p style="font-weight: bold; font-size: 1.125rem;">PDFを解析中...</p>
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">端末の性能により数秒〜数十秒かかります</p>
       </div>
-      <div class="w-full max-w-xs bg-gray-200 rounded-full h-2.5">
-        <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out"
-          style="width: 0%"></div>
+      <div class="progress-container">
+        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
       </div>
-      <p id="progress-text" class="text-indigo-600 font-medium">0% 完了</p>
+      <p id="progress-text" style="color: var(--primary); font-weight: 500;">0% 完了</p>
     </div>
 
     <!-- 3. 検索画面 -->
-    <div id="view-search" class="space-y-4 hidden">
-      <div class="sticky top-[60px] z-10 bg-gray-50/95 backdrop-blur-sm pt-2 pb-4">
-        <div class="relative">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <!-- Search Icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="text-gray-400">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </div>
-          <input type="text" id="search-input"
-            class="block w-full pl-10 pr-10 py-3.5 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm text-base transition-shadow"
-            placeholder="検索キーワードを入力..." />
-          <button id="btn-clear-search"
-            class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 hidden">
+    <div id="view-search" class="hidden">
+      <div class="search-wrapper">
+        <div class="search-input-box">
+          <svg class="search-icon-left" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="検索キーワードを入力..." />
+          <button id="btn-clear-search" class="search-clear-btn hidden">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -164,17 +866,14 @@
           </button>
         </div>
 
-        <div class="flex justify-between items-center mt-3 px-1">
-          <div class="text-sm text-gray-600 flex items-center gap-2">
-            <span id="txt-file-name"
-              class="font-medium text-gray-900 truncate max-w-[150px] inline-block align-bottom"></span>
+        <div class="search-meta">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span id="txt-file-name" class="truncate" style="color: #111827;"></span>
             <span id="txt-total-pages"></span>
-            <span id="badge-cache-loaded"
-              class="flex items-center text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded border border-green-200 hidden"
-              title="前回保存した解析データを読み込みました">
-              <!-- DatabaseZap Icon -->
+            <span id="badge-cache-loaded" class="badge badge-success hidden" title="前回保存した解析データを読み込みました">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-0.5">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                style="margin-right:2px">
                 <ellipse cx="12" cy="5" rx="9" ry="3" />
                 <path d="M3 5V19A9 3 0 0 0 15 21.84" />
                 <path d="M21 5V8.46" />
@@ -184,25 +883,20 @@
               高速ロード
             </span>
           </div>
-          <span id="badge-hit-count"
-            class="text-sm font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md hidden"></span>
+          <span id="badge-hit-count" class="badge badge-primary hidden"></span>
         </div>
       </div>
 
-      <!-- 検索結果リスト -->
-      <div id="search-results-list" class="space-y-3"></div>
+      <div id="search-results-list"></div>
 
-      <!-- 検索結果が空の場合 -->
-      <div id="search-empty-state" class="bg-white p-8 rounded-xl text-center border border-gray-100 shadow-sm hidden">
-        <p class="text-gray-500">「<span id="txt-empty-query"
-            class="font-medium text-gray-800"></span>」に一致するテキストは見つかりませんでした。</p>
+      <div id="search-empty-state" class="card card-center hidden" style="margin-top: 1rem;">
+        <p style="color: var(--text-muted);">「<span id="txt-empty-query"
+            style="color: #111827; font-weight: 500;"></span>」に一致するテキストは見つかりませんでした。</p>
       </div>
 
-      <!-- 初期状態（未検索） -->
-      <div id="search-initial-state" class="text-center py-12 text-gray-400">
+      <div id="search-initial-state" class="empty-state">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          class="mx-auto mb-4 opacity-50">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
@@ -211,10 +905,7 @@
     </div>
   </main>
 
-  <!-- トップへ戻るボタン -->
-  <button id="btn-scroll-top"
-    class="fixed bottom-6 right-6 p-3 bg-gray-800 text-white rounded-full shadow-lg hover:bg-gray-700 active:transform active:scale-95 transition-all z-20 hidden"
-    aria-label="トップへ戻る">
+  <button id="btn-scroll-top" class="fab hidden" aria-label="トップへ戻る">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="m18 15-6-6-6 6" />
@@ -222,29 +913,40 @@
   </button>
 
   <!-- ページ内容表示モーダル -->
-  <div id="modal-overlay"
-    class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm transition-opacity hidden">
-    <div
-      class="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-6xl h-[96vh] flex flex-col overflow-hidden transform transition-all"
-      onclick="event.stopPropagation()">
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-container" onclick="event.stopPropagation()">
 
       <!-- モーダルヘッダー -->
-      <div class="flex items-center justify-between p-4 border-b border-gray-100 bg-indigo-50/50 shrink-0">
-        <h3 class="font-bold text-indigo-900 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="text-indigo-600">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" x2="8" y1="13" y2="13" />
-            <line x1="16" x2="8" y1="17" y2="17" />
-            <line x1="10" x2="8" y1="9" y2="9" />
-          </svg>
-          <span id="modal-title-page"></span>
-        </h3>
-        <button id="btn-close-modal"
-          class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
-          aria-label="閉じる">
+      <div class="modal-header">
+        <div class="modal-nav-group">
+          <button id="btn-prev-page" class="nav-btn" aria-label="前のページ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+
+          <h3 class="modal-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" x2="8" y1="13" y2="13" />
+              <line x1="16" x2="8" y1="17" y2="17" />
+              <line x1="10" x2="8" y1="9" y2="9" />
+            </svg>
+            <span id="modal-title-page"></span>
+          </h3>
+
+          <button id="btn-next-page" class="nav-btn" aria-label="次のページ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <button id="btn-close-modal" class="modal-close" aria-label="閉じる">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -255,11 +957,9 @@
       </div>
 
       <!-- タブ切り替え -->
-      <div class="flex border-b border-gray-200 shrink-0">
-        <button id="tab-btn-pdf"
-          class="flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30">
-          <!-- ImageIcon -->
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+      <div class="tabs">
+        <button id="tab-btn-pdf" class="tab active">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
             <circle cx="9" cy="9" r="2" />
@@ -267,10 +967,8 @@
           </svg>
           実際のページ
         </button>
-        <button id="tab-btn-text"
-          class="flex-1 py-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors text-gray-500 hover:bg-gray-50">
-          <!-- AlignLeft Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+        <button id="tab-btn-text" class="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="21" x2="3" y1="6" y2="6" />
             <line x1="15" x2="3" y1="12" y2="12" />
@@ -281,16 +979,12 @@
       </div>
 
       <!-- コンテンツ領域 -->
-      <div class="flex-1 overflow-hidden flex flex-col relative bg-gray-100">
+      <div class="modal-body">
 
         <!-- PDF表示モード -->
-        <div id="modal-content-pdf" class="flex flex-col w-full h-full relative">
-
-          <!-- ズームコントロール -->
-          <div
-            class="absolute bottom-4 right-4 flex items-center gap-1 bg-gray-800/90 backdrop-blur-sm text-white p-1.5 rounded-full shadow-xl z-20">
-            <button id="btn-zoom-out" class="p-2 hover:bg-gray-600 rounded-full disabled:opacity-30 transition-colors"
-              aria-label="縮小">
+        <div id="modal-content-pdf" style="width:100%; height:100%; position:relative;">
+          <div class="zoom-controls">
+            <button id="btn-zoom-out" class="zoom-btn" aria-label="縮小">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8" />
@@ -298,9 +992,8 @@
                 <line x1="8" x2="14" y1="11" y2="11" />
               </svg>
             </button>
-            <span id="txt-zoom-level" class="text-sm font-medium w-12 text-center pointer-events-none">100%</span>
-            <button id="btn-zoom-in" class="p-2 hover:bg-gray-600 rounded-full disabled:opacity-30 transition-colors"
-              aria-label="拡大">
+            <span id="txt-zoom-level" class="zoom-text">100%</span>
+            <button id="btn-zoom-in" class="zoom-btn" aria-label="拡大">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8" />
@@ -311,32 +1004,50 @@
             </button>
           </div>
 
-          <div id="pdf-scroll-container" class="w-full h-full overflow-auto flex p-2 sm:p-4 relative bg-gray-200">
-            <div id="pdf-loading-overlay"
-              class="absolute inset-0 flex items-center justify-center bg-gray-200/80 z-10 hidden">
-              <svg class="animate-spin text-indigo-600" xmlns="http://www.w3.org/2000/svg" width="32" height="32"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+          <div id="pdf-scroll-container" class="pdf-viewer">
+            <div id="pdf-loading-overlay" class="loading-overlay hidden">
+              <svg class="animate-spin" style="color: var(--primary);" xmlns="http://www.w3.org/2000/svg" width="32"
+                height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
             </div>
-            <div id="pdf-wrapper" class="m-auto relative shadow-xl bg-white">
-              <canvas id="pdf-canvas" class="block w-full h-full"></canvas>
+            <div id="pdf-wrapper" class="pdf-wrapper">
+              <canvas id="pdf-canvas"></canvas>
               <div id="pdf-text-layer" class="pdf-text-layer"></div>
             </div>
           </div>
         </div>
 
         <!-- テキスト表示モード -->
-        <div id="modal-content-text"
-          class="p-6 overflow-y-auto text-base leading-loose text-gray-800 break-words whitespace-pre-wrap h-full bg-white hidden">
-        </div>
+        <div id="modal-content-text" class="modal-text-view hidden"></div>
       </div>
 
       <!-- フッター -->
-      <div class="p-4 border-t border-gray-100 bg-white text-right shrink-0">
-        <button id="btn-close-modal-footer"
-          class="px-6 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+      <div class="modal-footer">
+
+        <!-- 検索結果ジャンプナビゲーション -->
+        <div id="search-nav-container" class="result-nav hidden">
+          <span class="result-nav-label">検索結果を移動:</span>
+          <button id="btn-prev-result" class="result-nav-btn" aria-label="前の検索結果">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m18 15-6-6-6 6" />
+            </svg>
+            <span>前へ</span>
+          </button>
+          <span id="txt-result-index" class="result-index"></span>
+          <button id="btn-next-result" class="result-nav-btn" aria-label="次の検索結果">
+            <span>次へ</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <button id="btn-close-modal-footer" class="btn btn-primary"
+          style="width: auto; padding: 0.5rem 1.5rem; margin-left: auto;">
           閉じる
         </button>
       </div>
@@ -344,19 +1055,12 @@
   </div>
 
   <!-- カスタムダイアログ -->
-  <div id="dialog-overlay"
-    class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity hidden">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all">
-      <p id="dialog-message" class="text-gray-800 whitespace-pre-wrap mb-6 leading-relaxed text-sm sm:text-base"></p>
-      <div class="flex justify-end gap-3">
-        <button id="btn-dialog-cancel"
-          class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors hidden">
-          キャンセル
-        </button>
-        <button id="btn-dialog-ok"
-          class="px-5 py-2 text-sm font-medium text-white rounded-xl transition-colors bg-indigo-600 hover:bg-indigo-700">
-          OK
-        </button>
+  <div id="dialog-overlay" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <p id="dialog-message" class="dialog-msg"></p>
+      <div class="dialog-actions">
+        <button id="btn-dialog-cancel" class="btn-dialog-cancel hidden">キャンセル</button>
+        <button id="btn-dialog-ok" class="btn-dialog-ok">OK</button>
       </div>
     </div>
   </div>
@@ -367,7 +1071,7 @@
      * IndexedDB Wrapper
      * ==========================================
      */
-    const DB_NAME = 'PdfSearchAppDB';
+    const DB_NAME = 'PdfSearchAppDB_v2';
     const STORE_NAME = 'PdfCacheStore';
 
     const initDB = () => {
@@ -438,8 +1142,8 @@
       searchQuery: '',
       debouncedQuery: '',
       searchResults: [],
-      selectedPage: null, // 表示中のページデータ
-      viewMode: 'pdf',    // 'pdf' or 'text'
+      selectedPage: null,
+      viewMode: 'pdf',
       loadedFromCache: false,
       zoom: 1.0
     };
@@ -467,7 +1171,6 @@
       txtEmptyQuery: document.getElementById('txt-empty-query'),
       btnScrollTop: document.getElementById('btn-scroll-top'),
 
-      // Modal
       modalOverlay: document.getElementById('modal-overlay'),
       modalTitlePage: document.getElementById('modal-title-page'),
       btnCloseModal: document.getElementById('btn-close-modal'),
@@ -477,7 +1180,13 @@
       modalContentPdf: document.getElementById('modal-content-pdf'),
       modalContentText: document.getElementById('modal-content-text'),
 
-      // PDF Renderer
+      btnPrevPage: document.getElementById('btn-prev-page'),
+      btnNextPage: document.getElementById('btn-next-page'),
+      searchNavContainer: document.getElementById('search-nav-container'),
+      btnPrevResult: document.getElementById('btn-prev-result'),
+      btnNextResult: document.getElementById('btn-next-result'),
+      txtResultIndex: document.getElementById('txt-result-index'),
+
       pdfScrollContainer: document.getElementById('pdf-scroll-container'),
       pdfWrapper: document.getElementById('pdf-wrapper'),
       pdfCanvas: document.getElementById('pdf-canvas'),
@@ -487,7 +1196,6 @@
       btnZoomIn: document.getElementById('btn-zoom-in'),
       txtZoomLevel: document.getElementById('txt-zoom-level'),
 
-      // Dialog
       dialogOverlay: document.getElementById('dialog-overlay'),
       dialogMessage: document.getElementById('dialog-message'),
       btnDialogCancel: document.getElementById('btn-dialog-cancel'),
@@ -501,11 +1209,10 @@
 
     // --- Init ---
     window.onload = () => {
-      // PDF.js worker setup
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-      els.lblUpload.classList.remove('bg-gray-400', 'cursor-not-allowed');
-      els.lblUpload.classList.add('bg-indigo-600', 'hover:bg-indigo-700', 'active:bg-indigo-800');
+      els.lblUpload.classList.remove('btn-disabled');
+      els.lblUpload.classList.add('btn-primary');
       els.lblUpload.textContent = 'ファイルを選択';
       els.pdfUpload.disabled = false;
     };
@@ -517,14 +1224,12 @@
 
       if (type === 'confirm') {
         els.btnDialogCancel.classList.remove('hidden');
-        els.btnDialogOk.classList.replace('bg-indigo-600', 'bg-red-500');
-        els.btnDialogOk.classList.replace('hover:bg-indigo-700', 'hover:bg-red-600');
+        els.btnDialogOk.classList.add('btn-dialog-danger');
         els.btnDialogOk.textContent = '削除する';
         dialogConfirmCallback = onConfirm;
       } else {
         els.btnDialogCancel.classList.add('hidden');
-        els.btnDialogOk.classList.replace('bg-red-500', 'bg-indigo-600');
-        els.btnDialogOk.classList.replace('hover:bg-red-600', 'hover:bg-indigo-700');
+        els.btnDialogOk.classList.remove('btn-dialog-danger');
         els.btnDialogOk.textContent = 'OK';
         dialogConfirmCallback = null;
       }
@@ -569,12 +1274,10 @@
         state.pdfDoc = pdf;
 
         if (cachedData) {
-          console.log("キャッシュから読み込みました");
           state.pdfData = cachedData;
           state.progress = 100;
           state.loadedFromCache = true;
         } else {
-          console.log("新規で解析を実行します");
           state.pdfData = await extractTextFromPdf(pdf);
           await saveToCache(cacheKey, state.pdfData);
         }
@@ -643,7 +1346,9 @@
     // Modal Events
     els.btnCloseModal.onclick = closeModal;
     els.btnCloseModalFooter.onclick = closeModal;
-    els.modalOverlay.onclick = closeModal;
+    els.modalOverlay.onclick = (e) => {
+      if (e.target === els.modalOverlay) closeModal();
+    };
 
     els.tabBtnPdf.onclick = () => setModalViewMode('pdf');
     els.tabBtnText.onclick = () => setModalViewMode('text');
@@ -657,26 +1362,74 @@
       renderModalPdf();
     };
 
-    // --- Core Logic ---
+    // Navigation Events
+    els.btnPrevPage.onclick = () => {
+      if (state.selectedPage && state.selectedPage.page > 1) {
+        openModal(state.selectedPage.page - 1);
+      }
+    };
+
+    els.btnNextPage.onclick = () => {
+      if (state.selectedPage && state.pdfData && state.selectedPage.page < state.pdfData.length) {
+        openModal(state.selectedPage.page + 1);
+      }
+    };
+
+    els.btnPrevResult.onclick = () => {
+      if (!state.selectedPage || state.searchResults.length === 0) return;
+      const currentPage = state.selectedPage.page;
+      const prevResults = state.searchResults.filter(r => r.page < currentPage);
+      if (prevResults.length > 0) {
+        openModal(prevResults[prevResults.length - 1].page);
+      }
+    };
+
+    els.btnNextResult.onclick = () => {
+      if (!state.selectedPage || state.searchResults.length === 0) return;
+      const currentPage = state.selectedPage.page;
+      const nextResults = state.searchResults.filter(r => r.page > currentPage);
+      if (nextResults.length > 0) {
+        openModal(nextResults[0].page);
+      }
+    };
+
+
+    // --- Core Logic (Performance Optimized) ---
     async function extractTextFromPdf(pdf) {
       const numPages = pdf.numPages;
       const extractedData = [];
+      const batchSize = 10; // 並列バッチ処理
 
-      for (let i = 1; i <= numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
+      for (let i = 1; i <= numPages; i += batchSize) {
+        const batchPromises = [];
+        const endPage = Math.min(i + batchSize - 1, numPages);
 
-        const pageText = textContent.items
-          .map(item => item.str)
-          .join('')
-          .replace(/\s+/g, ' ');
+        for (let j = i; j <= endPage; j++) {
+          batchPromises.push((async () => {
+            const page = await pdf.getPage(j);
+            const textContent = await page.getTextContent();
 
-        extractedData.push({ page: i, text: pageText });
+            const pageText = textContent.items
+              .map(item => item.str)
+              .join('')
+              .replace(/\s+/g, ' ');
 
-        state.progress = Math.round((i / numPages) * 100);
+            // メモリ解放
+            try { page.cleanup(); } catch (e) { }
+
+            return { page: j, text: pageText };
+          })());
+        }
+
+        const batchResults = await Promise.all(batchPromises);
+        extractedData.push(...batchResults);
+
+        state.progress = Math.round((endPage / numPages) * 100);
         els.progressBar.style.width = `${state.progress}%`;
         els.progressText.textContent = `${state.progress}% 完了`;
       }
+
+      extractedData.sort((a, b) => a.page - b.page);
       return extractedData;
     }
 
@@ -695,6 +1448,7 @@
         .map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('\\s*');
 
+      // 正規表現オブジェクトを1度だけ生成（最適化）
       const searchRegex = new RegExp(regexStr, 'gi');
       const results = [];
 
@@ -704,9 +1458,9 @@
         let matchCount = 0;
         let match;
 
-        const regex = new RegExp(searchRegex);
+        searchRegex.lastIndex = 0;
 
-        while ((match = regex.exec(text)) !== null) {
+        while ((match = searchRegex.exec(text)) !== null) {
           matchCount++;
 
           if (snippets.length < 3) {
@@ -750,7 +1504,7 @@
         els.btnReset.classList.add('hidden');
       } else if (state.loading) {
         els.viewUpload.classList.add('hidden');
-        els.viewLoading.classList.replace('hidden', 'flex');
+        els.viewLoading.classList.remove('hidden');
         els.viewSearch.classList.add('hidden');
         els.btnReset.classList.add('hidden');
         els.progressBar.style.width = '0%';
@@ -758,7 +1512,6 @@
       } else {
         els.viewUpload.classList.add('hidden');
         els.viewLoading.classList.add('hidden');
-        els.viewLoading.classList.remove('flex');
         els.viewSearch.classList.remove('hidden');
         els.btnReset.classList.remove('hidden');
 
@@ -808,26 +1561,25 @@
 
       state.searchResults.forEach(result => {
         const card = document.createElement('div');
-        card.className = "bg-white p-4 rounded-xl shadow-sm border border-gray-100 active:bg-gray-50 transition-colors cursor-pointer hover:border-indigo-300 hover:shadow-md";
+        card.className = "result-card";
         card.onclick = () => openModal(result.page);
 
         let matchBadge = '';
         if (result.matchCount > 1) {
-          matchBadge = `<span class="bg-gray-100 text-gray-600 text-[11px] font-medium px-2 py-0.5 rounded-full border border-gray-200">${result.matchCount}箇所ヒット</span>`;
+          matchBadge = `<span class="badge badge-gray">${result.matchCount}箇所ヒット</span>`;
         }
 
         card.innerHTML = `
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-1 rounded-md">ページ ${result.page}</span>
+          <div class="result-card-header">
+            <div class="result-card-tags">
+              <span class="badge badge-primary">ページ ${result.page}</span>
               ${matchBadge}
             </div>
-            <span class="text-xs text-indigo-500 font-medium whitespace-nowrap ml-2">実際のページを見る &gt;</span>
+            <span class="result-card-link">実際のページを見る &gt;</span>
           </div>
-          <p class="text-gray-700 text-sm leading-relaxed break-words whitespace-pre-wrap"></p>
+          <p class="result-card-snippet"></p>
         `;
 
-        // ハイライトの適用 (XSS防止と正確なDOM構築のため)
         const pTag = card.querySelector('p');
         pTag.appendChild(createHighlightedElement(result.snippet, state.debouncedQuery));
 
@@ -835,7 +1587,6 @@
       });
     }
 
-    // ハイライト用DOMエレメントの生成
     function createHighlightedElement(text, highlight) {
       const container = document.createElement('span');
       const cleanHighlight = highlight.replace(/[\s　]+/g, '');
@@ -857,7 +1608,6 @@
       parts.forEach(part => {
         if (matchRegex.test(part)) {
           const mark = document.createElement('mark');
-          mark.className = "bg-yellow-300 text-gray-900 px-0.5 rounded font-medium";
           mark.textContent = part;
           container.appendChild(mark);
         } else {
@@ -874,20 +1624,49 @@
 
       state.selectedPage = pageData;
       state.zoom = 1.0;
-      els.modalTitlePage.textContent = `ページ ${pageNumber}`;
+
+      updateModalNavigation();
+
       els.modalOverlay.classList.remove('hidden');
       document.body.classList.add('modal-open');
 
-      setModalViewMode('pdf'); // デフォルトはPDF表示
+      setModalViewMode(state.viewMode);
+    }
+
+    function updateModalNavigation() {
+      if (!state.selectedPage || !state.pdfData) return;
+
+      const currentPage = state.selectedPage.page;
+      els.modalTitlePage.textContent = `ページ ${currentPage}`;
+
+      els.btnPrevPage.disabled = currentPage <= 1;
+      els.btnNextPage.disabled = currentPage >= state.pdfData.length;
+
+      if (state.debouncedQuery && state.searchResults.length > 0) {
+        els.searchNavContainer.classList.remove('hidden');
+
+        const resultIndex = state.searchResults.findIndex(r => r.page === currentPage);
+
+        if (resultIndex !== -1) {
+          els.txtResultIndex.textContent = `${resultIndex + 1} / ${state.searchResults.length}`;
+        } else {
+          els.txtResultIndex.textContent = `- / ${state.searchResults.length}`;
+        }
+
+        const hasPrev = state.searchResults.some(r => r.page < currentPage);
+        const hasNext = state.searchResults.some(r => r.page > currentPage);
+
+        els.btnPrevResult.disabled = !hasPrev;
+        els.btnNextResult.disabled = !hasNext;
+
+      } else {
+        els.searchNavContainer.classList.add('hidden');
+      }
     }
 
     function closeModal() {
-      if (currentRenderTask) {
-        try { currentRenderTask.cancel(); } catch (e) { }
-      }
-      if (currentTextLayerTask) {
-        try { currentTextLayerTask.cancel(); } catch (e) { }
-      }
+      if (currentRenderTask) { try { currentRenderTask.cancel(); } catch (e) { } }
+      if (currentTextLayerTask) { try { currentTextLayerTask.cancel(); } catch (e) { } }
       state.selectedPage = null;
       els.modalOverlay.classList.add('hidden');
       document.body.classList.remove('modal-open');
@@ -897,27 +1676,19 @@
       state.viewMode = mode;
 
       if (mode === 'pdf') {
-        els.tabBtnPdf.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50/30');
-        els.tabBtnPdf.classList.remove('text-gray-500', 'hover:bg-gray-50');
-
-        els.tabBtnText.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50/30');
-        els.tabBtnText.classList.add('text-gray-500', 'hover:bg-gray-50');
+        els.tabBtnPdf.classList.add('active');
+        els.tabBtnText.classList.remove('active');
 
         els.modalContentPdf.classList.remove('hidden');
-        els.modalContentPdf.classList.add('flex');
         els.modalContentText.classList.add('hidden');
 
         renderModalPdf();
       } else {
-        els.tabBtnText.classList.add('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50/30');
-        els.tabBtnText.classList.remove('text-gray-500', 'hover:bg-gray-50');
-
-        els.tabBtnPdf.classList.remove('text-indigo-600', 'border-b-2', 'border-indigo-600', 'bg-indigo-50/30');
-        els.tabBtnPdf.classList.add('text-gray-500', 'hover:bg-gray-50');
+        els.tabBtnText.classList.add('active');
+        els.tabBtnPdf.classList.remove('active');
 
         els.modalContentText.classList.remove('hidden');
         els.modalContentPdf.classList.add('hidden');
-        els.modalContentPdf.classList.remove('flex');
 
         els.modalContentText.innerHTML = '';
         els.modalContentText.appendChild(createHighlightedElement(state.selectedPage.text, state.debouncedQuery));
@@ -927,13 +1698,8 @@
     async function renderModalPdf() {
       if (!state.pdfDoc || !state.selectedPage) return;
 
-      // 既存のタスクをキャンセル
-      if (currentRenderTask) {
-        try { await currentRenderTask.cancel(); } catch (e) { }
-      }
-      if (currentTextLayerTask) {
-        try { await currentTextLayerTask.cancel(); } catch (e) { }
-      }
+      if (currentRenderTask) { try { await currentRenderTask.cancel(); } catch (e) { } }
+      if (currentTextLayerTask) { try { await currentTextLayerTask.cancel(); } catch (e) { } }
 
       els.pdfLoadingOverlay.classList.remove('hidden');
       els.txtZoomLevel.textContent = `${Math.round(state.zoom * 100)}%`;
@@ -945,7 +1711,7 @@
 
         const containerWidth = els.pdfScrollContainer.clientWidth;
         const viewportForScale = page.getViewport({ scale: 1.0 });
-        const baseScale = (containerWidth - 16) / viewportForScale.width;
+        const baseScale = (containerWidth - 32) / viewportForScale.width; // 32px padding
         const finalScale = Math.max(baseScale, 0.5) * state.zoom;
 
         const viewport = page.getViewport({ scale: finalScale });
@@ -956,6 +1722,8 @@
         const outputScale = window.devicePixelRatio || 1;
         els.pdfCanvas.width = Math.floor(viewport.width * outputScale);
         els.pdfCanvas.height = Math.floor(viewport.height * outputScale);
+        els.pdfCanvas.style.width = Math.floor(viewport.width) + "px";
+        els.pdfCanvas.style.height = Math.floor(viewport.height) + "px";
 
         const context = els.pdfCanvas.getContext('2d');
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
@@ -969,7 +1737,6 @@
         currentRenderTask = page.render(renderContext);
         await currentRenderTask.promise;
 
-        // Text Layer
         els.pdfTextLayer.innerHTML = '';
         els.pdfTextLayer.style.width = els.pdfCanvas.style.width;
         els.pdfTextLayer.style.height = els.pdfCanvas.style.height;
