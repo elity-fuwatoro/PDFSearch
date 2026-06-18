@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>スマートPDF検索</title>
 
-  <!-- PDF.js のみ外部から読み込み -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
@@ -67,7 +66,9 @@
     .header {
       background-color: var(--primary);
       color: white;
-      padding: 1rem;
+      /* ヘッダーの高さを固定し、モバイルでも大きすぎないように調整 */
+      height: 54px;
+      padding: 0 1rem;
       box-shadow: var(--shadow-md);
       position: sticky;
       top: 0;
@@ -92,7 +93,6 @@
       padding: 1rem;
     }
 
-    /* Cards */
     .card {
       background-color: var(--surface);
       padding: 1.5rem;
@@ -109,7 +109,6 @@
       text-align: center;
     }
 
-    /* Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -151,7 +150,6 @@
       color: #ef4444;
     }
 
-    /* Icons */
     .icon-circle {
       width: 4rem;
       height: 4rem;
@@ -164,7 +162,6 @@
       margin-bottom: 0.5rem;
     }
 
-    /* Progress Bar */
     .progress-container {
       width: 100%;
       max-width: 20rem;
@@ -181,15 +178,14 @@
       transition: width 0.3s ease-out;
     }
 
-    /* Search Input */
     .search-wrapper {
       position: sticky;
-      top: 60px;
-      /* Header height offset */
+      /* ヘッダーの固定高さ(54px)に正確に合わせて、裏に隠れないようにする */
+      top: 54px;
       z-index: 10;
       background: rgba(249, 250, 251, 0.95);
       backdrop-filter: blur(4px);
-      padding: 0.5rem 0 1rem;
+      padding: 0.5rem 0 0.75rem;
     }
 
     .search-input-box {
@@ -268,7 +264,6 @@
       border: 1px solid var(--border);
     }
 
-    /* Result Card */
     .result-card {
       background-color: var(--surface);
       padding: 1rem;
@@ -315,7 +310,6 @@
       word-break: break-word;
     }
 
-    /* Highlight */
     mark {
       background-color: var(--highlight-solid);
       color: #111827;
@@ -324,7 +318,6 @@
       font-weight: 500;
     }
 
-    /* Floating Action Button */
     .fab {
       position: fixed;
       bottom: 1.5rem;
@@ -365,19 +358,36 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      /* スマホ等の狭い画面でモーダルが画面幅いっぱいになるよう、paddingを0にする */
+      padding: 0;
     }
 
     .modal-container {
       background-color: var(--surface);
       width: 100%;
-      max-width: 72rem;
-      height: 96vh;
-      border-radius: var(--radius-2xl);
+      /* 画面幅最大まで広げる */
+      max-width: 100%;
+      /* 高さはフルスクリーン近くまで取る */
+      height: 100vh;
+      /* 角丸を消して完全に全画面にフィットさせる */
+      border-radius: 0;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    /* PCなど画面が広い場合のみ、少し余白を取り角丸にする */
+    @media (min-width: 640px) {
+      .modal-overlay {
+        padding: 1rem;
+      }
+
+      .modal-container {
+        max-width: 72rem;
+        height: 96vh;
+        border-radius: var(--radius-2xl);
+      }
     }
 
     .modal-header {
@@ -442,7 +452,6 @@
       color: #374151;
     }
 
-    /* Tabs */
     .tabs {
       display: flex;
       border-bottom: 1px solid var(--border);
@@ -471,14 +480,14 @@
       background-color: rgba(238, 242, 255, 0.5);
     }
 
-    /* Modal Content */
     .modal-body {
       flex: 1;
       overflow: hidden;
       display: flex;
       flex-direction: column;
       position: relative;
-      background-color: #f3f4f6;
+      background-color: #d1d5db;
+      /* gray-300: PDFの背景を少し濃くする */
     }
 
     .modal-text-view {
@@ -499,12 +508,13 @@
       height: 100%;
       overflow: auto;
       display: flex;
-      padding: 1rem;
+      /* 左右の余白を極限まで減らし、画面いっぱいにPDFを表示する */
+      padding: 1rem 0;
       position: relative;
     }
 
     .pdf-wrapper {
-      margin: auto;
+      margin: 0 auto auto auto;
       position: relative;
       background-color: white;
       box-shadow: var(--shadow-lg);
@@ -585,14 +595,13 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: rgba(229, 231, 235, 0.8);
+      background-color: rgba(209, 213, 219, 0.8);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 10;
     }
 
-    /* Modal Footer */
     .modal-footer {
       padding: 1rem;
       background-color: white;
@@ -619,9 +628,7 @@
       gap: 0.25rem;
       padding: 0.5rem 1rem;
       background-color: #fef08a;
-      /* yellow-200 */
       color: #854d0e;
-      /* yellow-800 */
       font-size: 0.875rem;
       font-weight: 500;
       border-radius: var(--radius-xl);
@@ -649,7 +656,6 @@
       padding: 0 0.25rem;
     }
 
-    /* Dialog */
     .dialog-overlay {
       position: fixed;
       top: 0;
@@ -721,7 +727,6 @@
       background-color: #dc2626;
     }
 
-    /* Utility animations */
     @keyframes spin {
       100% {
         transform: rotate(360deg);
@@ -752,7 +757,6 @@
       vertical-align: bottom;
     }
 
-    /* Mobile adjustments */
     @media (max-width: 640px) {
 
       .result-nav-label,
@@ -1398,7 +1402,7 @@
     async function extractTextFromPdf(pdf) {
       const numPages = pdf.numPages;
       const extractedData = [];
-      const batchSize = 10; // 並列バッチ処理
+      const batchSize = 10;
 
       for (let i = 1; i <= numPages; i += batchSize) {
         const batchPromises = [];
@@ -1414,7 +1418,6 @@
               .join('')
               .replace(/\s+/g, ' ');
 
-            // メモリ解放
             try { page.cleanup(); } catch (e) { }
 
             return { page: j, text: pageText };
@@ -1448,7 +1451,6 @@
         .map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('\\s*');
 
-      // 正規表現オブジェクトを1度だけ生成（最適化）
       const searchRegex = new RegExp(regexStr, 'gi');
       const results = [];
 
@@ -1711,9 +1713,11 @@
 
         const containerWidth = els.pdfScrollContainer.clientWidth;
         const viewportForScale = page.getViewport({ scale: 1.0 });
-        const baseScale = (containerWidth - 32) / viewportForScale.width; // 32px padding
-        const finalScale = Math.max(baseScale, 0.5) * state.zoom;
 
+        const paddingOffset = window.innerWidth < 640 ? 0 : 32;
+        const baseScale = (containerWidth - paddingOffset) / viewportForScale.width;
+
+        const finalScale = Math.max(baseScale, 0.5) * state.zoom;
         const viewport = page.getViewport({ scale: finalScale });
 
         els.pdfWrapper.style.width = Math.floor(viewport.width) + "px";
